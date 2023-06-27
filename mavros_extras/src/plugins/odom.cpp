@@ -54,6 +54,28 @@ public:
 	void initialize(UAS &uas_) override
 	{
 		PluginBase::initialize(uas_);
+		// move from mavros/src/lib/mavros_uas.cpp
+		// Publish helper TFs used for frame transformation in the odometry plugin
+
+		std::string complete_namespace = odom_nh.getNamespace();
+
+    		// Find the second-level namespace
+		std::string second_level_namespace;
+    		if (complete_namespace.length() > 1) {
+        		size_t second_slash_pos = complete_namespace.find('/', 1);
+        		if (second_slash_pos != std::string::npos) {
+            			second_level_namespace = complete_namespace.substr(1, second_slash_pos - 1);
+	        	}
+		}
+
+		local_namespace = second_level_namespace+"/mavros/";
+		std::vector<geometry_msgs::TransformStamped> transform_vector;
+       	 	uas_.add_static_transform(local_namespace+"map", local_namespace+"map_ned", Eigen::Affine3d(ftf::quaternion_from_rpy(M_PI, 0, M_PI_2)),transform_vector);
+	        uas_.add_static_transform(local_namespace+"odom", local_namespace+"odom_ned", Eigen::Affine3d(ftf::quaternion_from_rpy(M_PI, 0, M_PI_2)),transform_vector);
+        	uas_.add_static_transform(local_namespace+"base_link", local_namespace+"base_link_frd", Eigen::Affine3d(ftf::quaternion_from_rpy(M_PI, 0, 0)),transform_vector);
+
+
+	        uas_.tf2_static_broadcaster.sendTransform(transform_vector);
 
 		// frame params:
 		odom_nh.param<std::string>("fcu/odom_parent_id_des", fcu_odom_parent_id_des, "map");
@@ -78,6 +100,7 @@ private:
 	ros::Publisher odom_pub;			//!< nav_msgs/Odometry publisher
 	ros::Subscriber odom_sub;			//!< nav_msgs/Odometry subscriber
 
+	std::string local_namespace;
 	std::string fcu_odom_parent_id_des;			//!< desired orientation of the fcu odometry message's parent frame
 	std::string fcu_odom_child_id_des;			//!< desired orientation of the fcu odometry message's child frame
 
@@ -122,8 +145,8 @@ private:
 		Eigen::Affine3d tf_parent2parent_des;
 		Eigen::Affine3d tf_child2child_des;
 
-		lookup_static_transform(fcu_odom_parent_id_des, "map_ned", tf_parent2parent_des);
-		lookup_static_transform( fcu_odom_child_id_des, "base_link_frd", tf_child2child_des);
+		lookup_static_transform(fcu_odom_parent_id_des, local_namespace+"map_ned", tf_parent2parent_des);
+		lookup_static_transform(fcu_odom_child_id_des, local_namespace+"base_link_frd", tf_child2child_des);
 
 		//! Build 6x6 pose covariance matrix to be transformed and sent
 		Matrix6d cov_pose = Matrix6d::Zero();
@@ -203,8 +226,8 @@ private:
 		Eigen::Affine3d tf_parent2parent_des;
 		Eigen::Affine3d tf_child2child_des;
 
-		lookup_static_transform("odom_ned", odom->header.frame_id, tf_parent2parent_des);
-		lookup_static_transform("base_link_frd", odom->child_frame_id, tf_child2child_des);
+		lookup_static_transform(local_namespace+"odom_ned", odom->header.frame_id, tf_parent2parent_des);
+		lookup_static_transform(local_namespace+"base_link_frd", odom->child_frame_id, tf_child2child_des);
 
 		//! Build 6x6 pose covariance matrix to be transformed and sent
 		ftf::Covariance6d cov_pose = odom->pose.covariance;
