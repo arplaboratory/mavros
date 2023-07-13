@@ -52,6 +52,7 @@ add_library(mavconn
 target_link_libraries(mavconn
   ${Boost_LIBRARIES}
   ${console_bridge_LIBRARIES}
+  pthread
 )
 
 # Use catkin-supplied em_expand macros to generate source files
